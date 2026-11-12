@@ -464,7 +464,7 @@ mix-blend-mode:overlay}
 /* ===== APP SHELL ===== */
 .app{position:relative;z-index:1;display:grid;grid-template-columns:1fr 372px;min-height:100vh;animation:appIn .45s var(--ease)}
 body.insp-hidden .app{grid-template-columns:1fr}
-.stage{position:relative;display:flex;flex-direction:column;align-items:center;padding:18px 18px 96px;min-width:0}
+.stage{position:relative;display:flex;flex-direction:column;align-items:center;padding:18px 18px 24px;min-width:0}
 .topbar{position:sticky;top:0;z-index:60;width:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
 padding:11px 16px;margin-bottom:16px;border-radius:var(--t-rad);
 background:var(--t-topbar);
@@ -500,9 +500,10 @@ border:1px solid color-mix(in srgb,var(--ok) 35%,transparent);color:var(--ok);ba
 .save-pill.dirty{border-color:color-mix(in srgb,var(--amber) 45%,transparent);color:var(--amber);background:color-mix(in srgb,var(--amber) 10%,transparent)}
 .save-pill.saving{border-color:color-mix(in srgb,var(--cyan) 45%,transparent);color:var(--cyan);background:color-mix(in srgb,var(--cyan) 10%,transparent)}
 /* ===== PAGE ===== */
-.page-wrap{width:100%;display:flex;justify-content:center;overflow:auto;padding:6px}
-.page{width:297mm;min-height:210mm;background:var(--paper);padding:12mm 10mm;position:relative;overflow:hidden;
-box-shadow:0 24px 70px rgba(0,0,0,.5),0 0 0 1px color-mix(in srgb,var(--iris) 20%,transparent);flex-shrink:0;transform-origin:top left}
+.page-wrap{width:100%;flex:1 1 auto;min-height:0;display:flex;overflow:auto;padding:6px}
+.page-sizer{position:relative;margin:auto;overflow:hidden;flex-shrink:0}
+.page{width:297mm;min-height:210mm;background:var(--paper);padding:12mm 10mm;position:absolute;top:0;left:0;overflow:hidden;
+box-shadow:0 24px 70px rgba(0,0,0,.5),0 0 0 1px color-mix(in srgb,var(--iris) 20%,transparent);transform-origin:top left}
 .page-bg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;opacity:var(--bg-opacity);pointer-events:none}
 .decal-container{position:absolute;inset:0;z-index:2;pointer-events:none}
 #guides{position:absolute;inset:0;z-index:3;pointer-events:none;display:none}
@@ -872,7 +873,8 @@ body::before,.topbar,.inspector,#toast,#flash,#ctx,#ctx-block,.overlay,#insp-scr
 .app{display:block}
 .stage{padding:0}
 .page-wrap{overflow:visible;padding:0}
-.page{box-shadow:none;margin:0;width:297mm;min-height:210mm;transform:none!important}
+.page-sizer{overflow:visible!important;width:auto!important;height:auto!important;margin:0!important}
+.page{box-shadow:none;margin:0;width:297mm;min-height:210mm;transform:none!important;position:relative!important}
 .decal .handle,.decal .rotate-handle,.decal .rotate-line,.decal.active::before{display:none!important}
 .blk{outline:none!important}
 .blk.ctor-selected::after{display:none!important}
@@ -962,6 +964,7 @@ document.body.dataset.theme=r;
                 </button>
             </div>
             <div class="page-wrap" id="page-wrap">
+                <div class="page-sizer" id="page-sizer">
                 <div class="page" id="sheet-page">
                     <div class="page-bg"></div>
                     <div class="decal-container"></div>
@@ -1032,7 +1035,8 @@ document.body.dataset.theme=r;
                 </div>
             </div>
         </div>
-        <div id="insp-scrim" onclick="closeInspector()"></div>
+    </div>
+<div id="insp-scrim" onclick="closeInspector()"></div>
         <aside class="inspector" id="inspector">
             <div class="insp-head">
                 <div>
@@ -2696,10 +2700,7 @@ ${sel}${suffix} [data-part=box]{border-color:${s.bc};background:transparent;}`;
             if (sx === null && sy === null) guides.classList.remove('on');
             return { L, T };
         }
-        function currentViewScale() {
-            if (isTouch()) return baseScale * zoom;
-            return deskZoom;
-        }
+        function currentViewScale(){return baseScale*zoom;}
         function bindDecalEvents(wrap, rh) {
             let drag = false, sx, sy, ox, oy, tdrag = false, tsx, tsy, tox, toy, moved = false;
             let rot = false, ra, rr, trot = false, tra, trr;
@@ -3384,40 +3385,26 @@ ${sel}${suffix} [data-part=box]{border-color:${s.bc};background:transparent;}`;
         /* ==========================================================
         ZOOM / PAN
         ========================================================== */
-        let zoom = 1, baseScale = 1, panX = 0, panY = 0, deskZoom = 1;
-        function fitPage() {
-            if (!isTouch()) {
-                baseScale = 1; zoom = 1; panX = 0; panY = 0; deskZoom = 1;
-                page.style.transform = 'none'; page.style.position = 'relative'; page.style.margin = '0 auto';
-                $('zoom-pill').textContent = '100%'; return;
-            }
-            const wrap = $('page-wrap');
-            const tbH = document.querySelector('.topbar')?.offsetHeight || 60;
-            const availW = wrap.clientWidth - 8;
-            const availH = Math.max(220, innerHeight - tbH - 110);
-            const pw = 1122.5, ph = 793.7;
-            baseScale = Math.min(availW / pw, availH / ph, 1);
-            zoom = 1; panX = 0; panY = 0; applyZoom();
+        let zoom=1,baseScale=1,panX=0,panY=0;
+        const PAGE_W=1122.5,PAGE_H=793.7,MAX_FIT=3;
+        function fitPage(){
+        const wrap=$('page-wrap');
+        const availW=Math.max(200,wrap.clientWidth-12);
+        const availH=Math.max(200,wrap.clientHeight-12);
+        baseScale=clamp(Math.min(availW/PAGE_W,availH/PAGE_H),.2,MAX_FIT);
+        if(!isTouch()){panX=0;panY=0;}
+        applyZoom();
         }
-        function applyZoom() {
-            if (!isTouch()) return;
-            page.style.transformOrigin = 'center center';
-            page.style.transform = `translate(${panX}px,${panY}px) scale(${baseScale * zoom})`;
-            $('zoom-pill').textContent = Math.round(zoom * 100) + '%';
+        function applyZoom(){
+        const total=baseScale*zoom;
+        const sizer=$('page-sizer');
+        if(sizer){sizer.style.width=Math.round(PAGE_W*total)+'px';sizer.style.height=Math.round(PAGE_H*total)+'px';}
+        page.style.transformOrigin='top left';
+        page.style.transform=`translate(${panX}px,${panY}px) scale(${total})`;
+        $('zoom-pill').textContent=Math.round(total*100)+'%';
         }
-        function applyDeskZoom() {
-            page.style.transformOrigin = 'top center';
-            page.style.transform = deskZoom === 1 ? 'none' : `scale(${deskZoom})`;
-            $('zoom-pill').textContent = Math.round(deskZoom * 100) + '%';
-        }
-        function zoomBy(f) {
-            if (isTouch()) { zoom = clamp(zoom * f, .4, 4); applyZoom(); }
-            else { deskZoom = clamp(deskZoom * f, .5, 2.5); applyDeskZoom(); }
-        }
-        function zoomFit() {
-            if (isTouch()) { zoom = 1; panX = 0; panY = 0; applyZoom(); }
-            else { deskZoom = 1; applyDeskZoom(); }
-        }
+        function zoomBy(f){zoom=clamp(zoom*f,.25,6);applyZoom();}
+        function zoomFit(){zoom=1;panX=0;panY=0;fitPage();}
         $('z-in').addEventListener('click', () => zoomBy(1.15));
         $('z-out').addEventListener('click', () => zoomBy(1 / 1.15));
         $('z-fit').addEventListener('click', zoomFit);
