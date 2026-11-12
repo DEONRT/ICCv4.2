@@ -3503,6 +3503,610 @@ ${sel}${suffix} [data-part=box]{border-color:${s.bc};background:transparent;}`;
         })();
         addEventListener('load', fitPage);
     </script>
+    <script>
+        /* ==========================================================
+        IRIS CC — EXTENSION PACK
+        (2) свои блоки · (6) типографика блока · (9) рамки листа · (10) паттерны ·
+        (11) водяной знак слева снизу · (13) разделитель как блок · (14) градиент/текстура блока ·
+        (15) отключение лишних полей · (18) паки стилей · (19) ссылка на лист
+        Вставляется ПЕРЕД </body> после основного скрипта.
+        ========================================================== */
+        (function () {
+            if (typeof $ !== 'function' || typeof page === 'undefined') { console.warn('EXT: base not found'); return; }
+
+            /* ---------- injected CSS ---------- */
+            const extCss = document.createElement('style');
+            extCss.textContent = `
+    #page-pattern,#sheet-frame,#watermark{position:absolute;pointer-events:none;z-index:0}
+    #page-pattern{inset:0;opacity:.55}
+    #sheet-frame{inset:5mm}
+    #watermark{left:8mm;bottom:6mm;font-weight:900;letter-spacing:2px;text-transform:uppercase;white-space:nowrap;font-family:'Inter',sans-serif}
+    .custom-zone{display:flex;flex-direction:column;gap:10px;margin-top:14px;position:relative;z-index:1}
+    .custom-zone:empty{display:none}
+    .divider{width:100%;height:0;border-top:1px solid var(--border-color)}
+    .ck-cell{display:flex;align-items:center;gap:5px}
+    .fv-list{max-height:150px;overflow-y:auto;border-radius:6px;background:color-mix(in srgb,#000 18%,transparent)}
+    .fv-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 8px;font-size:10.5px;color:var(--txt-dim);border-bottom:1px solid color-mix(in srgb,var(--txt) 6%,transparent)}
+    .fv-row:last-child{border-bottom:none}
+    .fv-row label{display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;min-width:0}
+    .fv-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .fv-row input{accent-color:var(--iris);width:13px;height:13px;flex-shrink:0}
+    .subhead{font-size:9.5px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;color:var(--iris-soft);margin-top:2px}
+    `;
+            document.head.appendChild(extCss);
+
+            /* ---------- injected sheet layers ---------- */
+            bgLayer.insertAdjacentHTML('afterend',
+                `<div id="page-pattern"></div><div id="sheet-frame"></div><div id="watermark"></div>`);
+            page.querySelector('.sheet-content').insertAdjacentHTML('beforeend',
+                `<div class="custom-zone" id="custom-zone"></div>`);
+
+            /* ---------- injected inspector controls ---------- */
+            const picker = document.querySelector('.picker');
+            picker.insertAdjacentHTML('beforeend',
+                `<button class="icon-btn" id="blk-add" title="Добавить свой блок">+</button>
+      <button class="icon-btn" id="blk-del" title="Удалить свой блок" style="display:none">🗑</button>`);
+
+            const shapePane = document.querySelector('.pane[data-pane=shape]');
+            shapePane.querySelector('.chips').insertAdjacentHTML('beforebegin',
+                `<div class="row2">
+       <label class="mini"><span>Фон блока</span><select id="x-bgmode" class="sel sm">
+         <option value="flat">Плоский</option><option value="gradient">Градиент</option></select></label>
+       <label class="mini"><span>Текстура фона</span><select id="x-bgpat" class="sel sm">
+         <option value="none">Нет</option><option value="dots">Точки</option>
+         <option value="diag">Диагональ</option><option value="grid">Сетка</option></select></label>
+     </div>
+     <div class="row2">
+       <label class="mini"><span>Второй цвет градиента</span><input type="color" id="x-bg2" value="#ffffff"></label>
+       <label class="mini"><span>Угол градиента</span><input type="range" id="x-bgang" min="0" max="360" step="5" value="135"></label>
+     </div>`);
+
+            const fieldsPane = document.querySelector('.pane[data-pane=fields]');
+            fieldsPane.insertAdjacentHTML('beforeend',
+                `<div class="subhead">Текст блока</div>
+     <div class="row2">
+       <label class="mini"><span>Шрифт блока</span><select id="x-font" class="sel sm">
+         <option value="inherit">Как у листа</option><option value="Inter">Inter</option>
+         <option value="Georgia">Georgia</option><option value="Mono">JetBrains Mono</option>
+         <option value="Verdana">Verdana</option></select></label>
+       <label class="mini"><span>Интерлиньяж</span><input type="range" id="x-lh" min="0" max="30" step="1" value="0"></label>
+     </div>
+     <div class="toggles">
+       <label class="chk"><input type="checkbox" id="x-italic"><span>Курсив</span></label>
+       <label class="chk"><input type="checkbox" id="x-caps"><span>Капитель</span></label>
+     </div>
+     <div class="subhead">Видимость полей блока</div>
+     <div class="fv-list" id="field-vis"></div>`);
+
+            const palBody = document.querySelectorAll('.sec')[1].querySelector('.sec-body');
+            palBody.insertAdjacentHTML('beforeend',
+                `<div class="subhead">Оформление листа</div>
+     <div class="row2">
+       <label class="mini"><span>Рамка листа</span><select id="x-frame" class="sel sm">
+         <option value="none">Нет</option><option value="line">Линия</option><option value="double">Двойная</option>
+         <option value="thick">Массивная</option><option value="corners">Уголки</option><option value="dashed">Пунктир</option></select></label>
+       <label class="mini"><span>Паттерн фона</span><select id="x-pattern" class="sel sm">
+         <option value="none">Нет</option><option value="grid">Клетка</option><option value="dots">Точки</option>
+         <option value="diag">Диагональ</option><option value="ruled">Линовка</option><option value="paper">Бумага</option></select></label>`);
+
+            const fileSec = [...document.querySelectorAll('.sec')].pop();
+            const packsSec = document.createElement('div'); packsSec.className = 'sec';
+            packsSec.innerHTML = `<h3>Паки стилей</h3><div class="sec-body">
+     <div class="note">Пак = палитра + шрифт + рамка + паттерн + единый язык блоков. Применяется целиком, отменяется через Undo.</div>
+     <div class="chips" id="pack-chips"></div></div>`;
+            fileSec.parentNode.insertBefore(packsSec, fileSec);
+            fileSec.querySelector('.btn.accent').insertAdjacentHTML('afterend',
+                `<button class="btn cyan" id="x-share">🔗 Ссылка на лист</button>`);
+
+            document.body.insertAdjacentHTML('beforeend',
+                `<div class="overlay" id="addblk-modal"><div class="modal">
+      <div class="modal-h"><span>Новый блок</span><button class="modal-x" onclick="document.getElementById('addblk-modal').classList.remove('on')">×</button></div>
+      <div class="modal-body">
+        <label class="fld wide"><span>Название</span><input type="text" id="ab-name" class="txt-in" placeholder="Напр.: Инвентарь"></label>
+        <label class="mini"><span>Тип блока</span><select id="ab-kind" class="sel">
+          <option value="area">Текст (многострочный)</option>
+          <option value="rows">Список строк</option>
+          <option value="checks">Дорожка чекбоксов</option>
+          <option value="box">Рамка / бокс</option>
+          <option value="divider">Разделитель</option></select></label>
+      </div>
+      <div class="modal-f"><button class="btn ghost" onclick="document.getElementById('addblk-modal').classList.remove('on')">Отмена</button>
+      <button class="btn accent" id="ab-create">Создать блок</button></div>
+     </div></div>`);
+
+            /* ---------- state ---------- */
+            const BASE_IDS = BLOCK_DEFS.map(d => d.id);
+            let customDefs = [];
+            let sheetFrame = 'none', sheetPattern = 'none';
+            let watermarkCfg = { text: 'IRIS CORE SYSTEM', opacity: .08, size: 26 };
+            const FONT_STACKS2 = { Inter: "'Inter',Arial,sans-serif", Georgia: "Georgia,'Times New Roman',serif", Mono: "'JetBrains Mono',ui-monospace,monospace", Verdana: "Verdana,Geneva,sans-serif" };
+            const palNow = () => ({ headerBg: $('col-header-bg').value, headerText: $('col-header-text').value, border: $('col-border').value, text: $('col-text').value, accent: $('col-accent').value, paper: $('col-paper').value });
+
+            /* ---------- sheet decor ---------- */
+            function setFrame(id) {
+                sheetFrame = id; const fr = $('sheet-frame'); const p = palNow();
+                fr.style.cssText = '';
+                if (id === 'none') { fr.style.display = 'none'; return; }
+                fr.style.display = 'block';
+                if (id === 'line') fr.style.border = `1px solid ${p.border}`;
+                else if (id === 'double') fr.style.border = `3px double ${p.border}`;
+                else if (id === 'thick') fr.style.border = `6px solid ${p.headerBg}`;
+                else if (id === 'dashed') fr.style.border = `2px dashed ${p.border}`;
+                else if (id === 'corners') {
+                    const c = p.headerBg;
+                    fr.style.background = `linear-gradient(${c},${c}) 0 0/28px 3px,linear-gradient(${c},${c}) 0 0/3px 28px,
+         linear-gradient(${c},${c}) 100% 0/28px 3px,linear-gradient(${c},${c}) 100% 0/3px 28px,
+         linear-gradient(${c},${c}) 0 100%/28px 3px,linear-gradient(${c},${c}) 0 100%/3px 28px,
+         linear-gradient(${c},${c}) 100% 100%/28px 3px,linear-gradient(${c},${c}) 100% 100%/3px 28px`;
+                    fr.style.backgroundRepeat = 'no-repeat';
+                }
+                $('x-frame').value = id;
+            }
+            function patCss(type, color) {
+                const c = rgba(color, .35);
+                if (type === 'dots') return `radial-gradient(${c} 1px, transparent 1.2px)`;
+                if (type === 'diag') return `repeating-linear-gradient(45deg, ${c} 0 2px, transparent 2px 9px)`;
+                if (type === 'grid') return `linear-gradient(${c} 1px, transparent 1px),linear-gradient(90deg, ${c} 1px, transparent 1px)`;
+                return 'none';
+            }
+            function patSize(type) { return type === 'dots' ? '9px 9px' : type === 'grid' ? '12px 12px' : 'auto'; }
+            function setPattern(id) {
+                sheetPattern = id; const pt = $('page-pattern'); const p = palNow();
+                if (id === 'none') { pt.style.display = 'none'; $('x-pattern').value = id; return; }
+                pt.style.display = 'block';
+                const c = rgba(p.text, .08);
+                if (id === 'grid') { pt.style.backgroundImage = `linear-gradient(${c} 1px,transparent 1px),linear-gradient(90deg,${c} 1px,transparent 1px)`; pt.style.backgroundSize = '24px 24px'; }
+                else if (id === 'dots') { pt.style.backgroundImage = `radial-gradient(${rgba(p.text, .12)} 1.1px, transparent 1.2px)`; pt.style.backgroundSize = '14px 14px'; }
+                else if (id === 'diag') { pt.style.backgroundImage = `repeating-linear-gradient(45deg, ${rgba(p.text, .07)} 0 3px, transparent 3px 14px)`; pt.style.backgroundSize = 'auto'; }
+                else if (id === 'ruled') { pt.style.backgroundImage = `repeating-linear-gradient(0deg, ${rgba(p.text, .09)} 0 1px, transparent 1px 9mm)`; pt.style.backgroundSize = 'auto'; }
+                else if (id === 'paper') { pt.style.backgroundImage = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E")`; pt.style.backgroundSize = '120px 120px'; }
+                $('x-pattern').value = id;
+            }
+            function setWatermark(w) {
+                if (w) watermarkCfg = Object.assign({}, watermarkCfg, w);
+                const elw = $('watermark'); const p = palNow();
+                elw.textContent = watermarkCfg.text || '';
+                elw.style.display = watermarkCfg.text ? 'block' : 'none';
+                elw.style.opacity = String(clamp(parseFloat(watermarkCfg.opacity) || 0, 0, 1));
+                elw.style.fontSize = (watermarkCfg.size || 26) + 'px';
+                elw.style.color = p.text;
+                $('x-wm-text').value = watermarkCfg.text || '';
+                $('x-wm-op').value = Math.round((parseFloat(watermarkCfg.opacity) || 0) * 100);
+                $('x-wm-op-v').textContent = Math.round((parseFloat(watermarkCfg.opacity) || 0) * 100) + '%';
+                $('x-wm-size').value = watermarkCfg.size || 26;
+                $('x-wm-size-v').textContent = watermarkCfg.size || 26;
+            }
+
+            /* ---------- palette piggyback (frame/pattern/watermark travel everywhere) ---------- */
+            const _readPalette = readPalette;
+            readPalette = function () { const p = _readPalette(); p.frame = sheetFrame; p.pattern = sheetPattern; p.watermark = Object.assign({}, watermarkCfg); return p; };
+            const _applyPalette = applyPalette;
+            applyPalette = function (p) {
+                const src = p || PALETTE;
+                const ex = { frame: src.frame, pattern: src.pattern, watermark: src.watermark };
+                const colors = {}; Object.keys(PAL_INPUT).forEach(k => colors[k] = src[k]);
+                _applyPalette(colors);
+                if (ex.frame !== undefined) setFrame(ex.frame);
+                if (ex.pattern !== undefined) setPattern(ex.pattern);
+                if (ex.watermark !== undefined) setWatermark(ex.watermark);
+                checkContrast();
+            };
+
+            /* ---------- custom blocks ---------- */
+            function createCustomNode(def) {
+                const zone = $('custom-zone');
+                const node = document.createElement('div');
+                node.className = 'blk'; node.dataset.block = def.id;
+                let host = '';
+                if (def.kind === 'area') host = `<textarea data-field="${def.id}-text" data-part="field" placeholder="${esc(def.name)}"></textarea>`;
+                else if (def.kind === 'rows') host = `<div class="rows" data-rows="rows"></div>`;
+                else if (def.kind === 'checks') host = `<div class="stress-track" data-rows="check" data-prefix="${def.id}"></div>`;
+                else if (def.kind === 'box') host = `<div class="portrait-box" data-part="box" style="min-height:90px"></div>`;
+                else if (def.kind === 'divider') host = `<div class="divider" data-part="div"></div>`;
+                node.innerHTML = `<div class="hbar" data-part="title"><span class="blk-label">${esc(def.title || def.name)}</span></div>${host}`;
+                zone.appendChild(node);
+                return node;
+            }
+            function refreshBlockOptions() {
+                $('block-select').innerHTML = BLOCK_DEFS.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+                $('block-select').value = currentBlock;
+            }
+            $('blk-add').addEventListener('click', () => $('addblk-modal').classList.add('on'));
+            $('ab-create').addEventListener('click', () => {
+                const name = $('ab-name').value.trim() || 'Новый блок';
+                const kind = $('ab-kind').value;
+                const def = {
+                    id: uid('cb'), name, title: name, kind, custom: true, fieldPrefix: null,
+                    countable: (kind === 'rows' || kind === 'checks'),
+                    count: kind === 'rows' ? 3 : kind === 'checks' ? 4 : 1, min: 1, max: 12
+                };
+                if (kind === 'rows') def.fieldPrefix = def.id;
+                customDefs.push(def); BLOCK_DEFS.push(def); DEF_BY_ID[def.id] = def;
+                createCustomNode(def);
+                blocks[def.id] = defaultBlock(def);
+                if (kind === 'area') blocks[def.id].fields.h = 90;
+                if (kind === 'divider') { blocks[def.id].title.visible = true; blocks[def.id].fields.bw = 2; }
+                $('addblk-modal').classList.remove('on'); $('ab-name').value = '';
+                refreshBlockOptions(); buildRows(def.id); applyBlock(def.id); bindCtorClicks();
+                selectBlock(def.id); markHist(); flash('Блок «' + name + '» добавлен');
+            });
+            $('blk-del').addEventListener('click', () => {
+                const def = DEF_BY_ID[currentBlock];
+                if (!def || !def.custom) { flash('Этот блок нельзя удалить'); return; }
+                if (!confirm('Удалить блок «' + def.name + '» вместе с его содержимым?')) return;
+                markHist();
+                const node = el(def.id); if (node) node.remove();
+                const i = BLOCK_DEFS.indexOf(def); if (i >= 0) BLOCK_DEFS.splice(i, 1);
+                delete DEF_BY_ID[def.id]; delete blocks[def.id];
+                customDefs = customDefs.filter(d => d.id !== def.id);
+                refreshBlockOptions(); selectBlock('character'); markHist(); flash('Блок удалён');
+            });
+
+            /* ---------- buildRows override (prefix + ck-cell) ---------- */
+            const _buildRows = buildRows;
+            buildRows = function (id) {
+                const def = DEF_BY_ID[id], node = el(id), b = cfg(id);
+                if (!def || !node || !b) return;
+                if (def.kind === 'rows') {
+                    const host = node.querySelector('[data-rows=aspect]') || node.querySelector('[data-rows=rows]');
+                    if (!host) return;
+                    const prefix = def.fieldPrefix || 'aspect';
+                    const old = {}; host.querySelectorAll('input').forEach(i => old[i.dataset.field] = i.value);
+                    host.innerHTML = '';
+                    for (let i = 0; i < b.count; i++) {
+                        const r = document.createElement('div'); r.className = 'row';
+                        const inp = document.createElement('input'); inp.type = 'text';
+                        inp.dataset.field = prefix + '-' + (i + 1); inp.dataset.part = 'field';
+                        inp.value = old[prefix + '-' + (i + 1)] || '';
+                        r.appendChild(inp); host.appendChild(r);
+                    }
+                    return;
+                }
+                if (def.kind === 'checks') {
+                    const host = node.querySelector('[data-rows=check]'); if (!host) return;
+                    const prefix = host.dataset.prefix || def.id;
+                    const old = {}; host.querySelectorAll('.cb').forEach(c => old[c.dataset.field] = c.classList.contains('checked'));
+                    host.innerHTML = '';
+                    for (let i = 0; i < b.count; i++) {
+                        const cell = document.createElement('span'); cell.className = 'ck-cell';
+                        const n = document.createElement('div'); n.className = 'num'; n.textContent = i + 1;
+                        const cb = document.createElement('div'); cb.className = 'cb';
+                        cb.dataset.field = prefix + '-' + (i + 1); cb.dataset.part = 'check';
+                        if (old[prefix + '-' + (i + 1)]) cb.classList.add('checked');
+                        cb.addEventListener('click', () => toggleCheck(cb));
+                        cell.appendChild(n); cell.appendChild(cb); host.appendChild(cell);
+                    }
+                    return;
+                }
+                _buildRows(id);
+            };
+
+            /* ---------- applyBlock override (font, gradient, texture, divider, hidden fields) ---------- */
+            function fieldWrapper(fd) {
+                if (fd.classList.contains('cb')) return fd.closest('.ck-cell') || fd;
+                return fd.closest('.sbox') || fd.closest('.row') || fd.closest('.conseq-row') || fd;
+            }
+            const _applyBlock = applyBlock;
+            applyBlock = function (id) {
+                _applyBlock(id);
+                const node = el(id), b = cfg(id); if (!node || !b) return;
+                const stack = (b.font && b.font !== 'inherit') ? FONT_STACKS2[b.font] : '';
+                node.querySelectorAll('input,textarea,.hbar,.skill-label,.num,.label,.portrait-box,.divider').forEach(x => {
+                    x.style.fontFamily = stack;
+                    x.style.fontStyle = b.italic ? 'italic' : '';
+                    x.style.fontVariantCaps = b.caps ? 'small-caps' : '';
+                    x.style.lineHeight = b.lh > 0 ? String(b.lh / 10) : '';
+                });
+                const s = b.shape;
+                if (!s.transparent) {
+                    if (b.bgMode === 'gradient') node.style.background = `linear-gradient(${b.bgAngle}deg, ${s.bg}, ${b.bg2})`;
+                    else if (b.bgPattern !== 'none') { node.style.backgroundColor = s.bg; node.style.backgroundImage = patCss(b.bgPattern, s.bc); node.style.backgroundSize = patSize(b.bgPattern); }
+                }
+                const dv = node.querySelector('[data-part=div]');
+                if (dv) {
+                    dv.style.borderTop = `${Math.max(1, b.fields.bw)}px ${b.fields.bs === 'none' ? 'solid' : b.fields.bs} ${b.fields.bc}`;
+                    dv.style.margin = `${Math.max(4, b.fields.gap)}px 0`; dv.style.border = 'none'; dv.style.borderTop = `${Math.max(1, b.fields.bw)}px ${b.fields.bs === 'none' ? 'solid' : b.fields.bs} ${b.fields.bc}`;
+                }
+                const hf = b.hiddenFields || {};
+                node.querySelectorAll('[data-field]').forEach(fd => { fieldWrapper(fd).style.display = hf[fd.dataset.field] ? 'none' : ''; });
+            };
+
+            /* ---------- serialize / deserialize with __custom + extras ---------- */
+            const _defaultBlock = defaultBlock;
+            defaultBlock = function (def) {
+                const b = _defaultBlock(def);
+                b.font = 'inherit'; b.lh = 0; b.italic = false; b.caps = false;
+                b.bgMode = 'flat'; b.bg2 = '#ffffff'; b.bgAngle = 135; b.bgPattern = 'none'; b.hiddenFields = {};
+                return b;
+            };
+            const _ser = serializeBlocks;
+            serializeBlocks = function () { const o = _ser(); o.__custom = clone(customDefs); return o; };
+            deserializeBlocks = function (data) {
+                customDefs = clone((data && data.__custom) || []);
+                for (let i = BLOCK_DEFS.length - 1; i >= 0; i--) { if (!BASE_IDS.includes(BLOCK_DEFS[i].id)) BLOCK_DEFS.splice(i, 1); }
+                customDefs.forEach(d => { BLOCK_DEFS.push(d); DEF_BY_ID[d.id] = d; });
+                page.querySelectorAll('#custom-zone .blk').forEach(n => { if (!customDefs.find(d => d.id === n.dataset.block)) n.remove(); });
+                customDefs.forEach(d => { if (!el(d.id)) createCustomNode(d); });
+                const nb = {};
+                BLOCK_DEFS.forEach(d => {
+                    const t = defaultBlock(d); const inc = data && data[d.id];
+                    if (inc) {
+                        t.enabled = inc.enabled !== false;
+                        Object.assign(t.shape, inc.shape || {}); Object.assign(t.title, inc.title || {}); Object.assign(t.fields, inc.fields || {});
+                        t.states = {
+                            normal: Object.assign(t.states.normal, (inc.states || {}).normal || {}),
+                            focus: Object.assign(t.states.focus, (inc.states || {}).focus || {}),
+                            filled: Object.assign(t.states.filled, (inc.states || {}).filled || {}),
+                            disabled: Object.assign(t.states.disabled, (inc.states || {}).disabled || {})
+                        };
+                        t.disabledPattern = inc.disabledPattern || t.disabledPattern;
+                        t.disabledMode = inc.disabledMode || t.disabledMode;
+                        t.count = clamp(parseInt(inc.count) || t.count, d.min || 1, d.max || 12);
+                        t.font = inc.font || t.font; t.lh = inc.lh ?? t.lh; t.italic = !!inc.italic; t.caps = !!inc.caps;
+                        t.bgMode = inc.bgMode || t.bgMode; t.bg2 = inc.bg2 || t.bg2; t.bgAngle = inc.bgAngle ?? t.bgAngle;
+                        t.bgPattern = inc.bgPattern || t.bgPattern; t.hiddenFields = inc.hiddenFields || {};
+                    }
+                    nb[d.id] = t;
+                });
+                blocks = nb; applyAllBlocks(); refreshBlockOptions(); syncInspector(); buildFieldVis();
+            };
+            const _applyAll = applyAllBlocks;
+            applyAllBlocks = function () { customDefs.forEach(d => { if (!el(d.id)) createCustomNode(d); }); _applyAll(); refreshBlockOptions(); };
+
+            /* ---------- field visibility list (idea 15) ---------- */
+            function fieldLabel(elx) {
+                const k = elx.dataset.field || '';
+                const map = { 'char-name': 'Имя', 'char-desc': 'Описание', 'extras': 'Дополнения', 'tricks': 'Трюки' };
+                if (map[k]) return map[k];
+                let m;
+                if (m = k.match(/^aspect-(\d+)$/)) return 'Аспект ' + m[1];
+                if (m = k.match(/^skill-(\d)-(\d+)$/)) return 'Навык +' + m[1] + ' · ячейка ' + m[2];
+                if (m = k.match(/^stress-phys-(\d+)$/)) return 'Физ. стресс ' + m[1];
+                if (m = k.match(/^stress-mental-(\d+)$/)) return 'Мент. стресс ' + m[1];
+                if (m = k.match(/^conseq-(\d+)$/)) return 'Последствие ' + m[1];
+                if (m = k.match(/-(\d+)$/)) return 'Поле ' + m[1];
+                return k;
+            }
+            function buildFieldVis() {
+                const host = $('field-vis'); if (!host) return;
+                const node = el(currentBlock); host.innerHTML = '';
+                if (!node) { return; }
+                const b = cfg(currentBlock); const hf = b.hiddenFields || (b.hiddenFields = {});
+                const fds = [...node.querySelectorAll('[data-field]')];
+                if (!fds.length) { host.innerHTML = '<div class="fv-row"><span style="color:var(--txt-mute)">У блока нет полей</span></div>'; return; }
+                fds.forEach(fd => {
+                    const row = document.createElement('div'); row.className = 'fv-row';
+                    row.innerHTML = `<label><input type="checkbox" ${hf[fd.dataset.field] ? '' : 'checked'}><span>${esc(fieldLabel(fd))}</span></label>`;
+                    row.querySelector('input').addEventListener('change', e => {
+                        if (e.target.checked) delete hf[fd.dataset.field]; else hf[fd.dataset.field] = true;
+                        applyBlock(currentBlock); scheduleSession(); markHistDebounced();
+                    });
+                    host.appendChild(row);
+                });
+            }
+            const _syncInspector = syncInspector;
+            syncInspector = function () {
+                _syncInspector();
+                const b = cfg(currentBlock); if (!b) return;
+                $('x-font').value = b.font || 'inherit';
+                $('x-lh').value = b.lh || 0;
+                $('x-italic').checked = !!b.italic;
+                $('x-caps').checked = !!b.caps;
+                $('x-bgmode').value = b.bgMode || 'flat';
+                $('x-bgpat').value = b.bgPattern || 'none';
+                $('x-bg2').value = b.bg2 || '#ffffff';
+                $('x-bgang').value = b.bgAngle ?? 135;
+                $('blk-del').style.display = DEF_BY_ID[currentBlock]?.custom ? '' : 'none';
+                buildFieldVis();
+            };
+            const _selectBlock = selectBlock;
+            selectBlock = function (id) { _selectBlock(id); buildFieldVis(); };
+            const _stepCount = stepCount;
+            stepCount = function (d) { _stepCount(d); buildFieldVis(); };
+
+            ['x-font', 'x-bgmode', 'x-bgpat'].forEach(id => $(id).addEventListener('change', e => {
+                const b = cfg(currentBlock);
+                if (id === 'x-font') b.font = e.target.value;
+                if (id === 'x-bgmode') b.bgMode = e.target.value;
+                if (id === 'x-bgpat') b.bgPattern = e.target.value;
+                applyBlock(currentBlock); scheduleSession(); markHist();
+            }));
+            $('x-lh').addEventListener('input', e => { cfg(currentBlock).lh = parseFloat(e.target.value); applyBlock(currentBlock); scheduleSession(); });
+            $('x-lh').addEventListener('change', () => markHist());
+            $('x-italic').addEventListener('change', e => { cfg(currentBlock).italic = e.target.checked; applyBlock(currentBlock); scheduleSession(); markHist(); });
+            $('x-caps').addEventListener('change', e => { cfg(currentBlock).caps = e.target.checked; applyBlock(currentBlock); scheduleSession(); markHist(); });
+            $('x-bg2').addEventListener('input', e => { cfg(currentBlock).bg2 = e.target.value; applyBlock(currentBlock); scheduleSession(); });
+            $('x-bgang').addEventListener('input', e => { cfg(currentBlock).bgAngle = parseFloat(e.target.value); applyBlock(currentBlock); scheduleSession(); });
+            $('x-frame').addEventListener('change', e => { setFrame(e.target.value); scheduleSession(); markHist(); });
+            $('x-pattern').addEventListener('change', e => { setPattern(e.target.value); scheduleSession(); markHist(); });
+            $('x-wm-text').addEventListener('input', e => { setWatermark({ text: e.target.value }); scheduleSession(); });
+            $('x-wm-text').addEventListener('change', () => markHist());
+            $('x-wm-op').addEventListener('input', e => { setWatermark({ opacity: e.target.value / 100 }); scheduleSession(); });
+            $('x-wm-op').addEventListener('change', () => markHist());
+            $('x-wm-size').addEventListener('input', e => { setWatermark({ size: parseFloat(e.target.value) }); scheduleSession(); });
+            $('x-wm-size').addEventListener('change', () => markHist());
+
+            /* ---------- preview: taller canvas + custom blocks ---------- */
+            const _renderPreview = renderPreview;
+            renderPreview = function (canvas, opt) {
+                const ratio = (opt && opt.pageRatio) || (page.scrollHeight / page.offsetWidth);
+                canvas.height = Math.round(canvas.width * ratio);
+                return _renderPreview(canvas, opt);
+            };
+            const _drawSheet = drawSheet;
+            drawSheet = function (ctx, W, H, opt) {
+                _drawSheet(ctx, W, H, opt);
+                const bl = opt.blocks || serializeBlocks();
+                const mm = v => v * (W / 297);
+                let cy = mm(172);
+                const customs = (bl.__custom || []);
+                customs.forEach(def => {
+                    const b = bl[def.id]; if (!b) return;
+                    ctx.save();
+                    ctx.globalAlpha = (b.shape.op / 100) * ((b.enabled ? b.states.normal.op : b.states.disabled.op) / 100);
+                    if (b.enabled === false && b.disabledMode === 'hide') { ctx.restore(); return; }
+                    const x = mm(10), w = mm(277);
+                    if (!b.shape.transparent) { ctx.fillStyle = b.shape.bg; ctx.fillRect(x, cy, w, mm(2)); }
+                    let y = cy;
+                    if (b.title.visible) {
+                        const th = mm(b.title.h * .26);
+                        ctx.fillStyle = b.title.bg; ctx.fillRect(x, y, w * (b.title.w / 100), th);
+                        ctx.fillStyle = b.title.fg; ctx.font = `900 ${Math.max(4, mm(b.title.fs * .26))}px Inter,Arial`;
+                        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                        ctx.fillText(String(b.title.text || def.name).toUpperCase(), x + mm(2), y + th / 2);
+                        y += th + mm(1.5);
+                    }
+                    const fh = mm(b.fields.h * .26), gap = mm(b.fields.gap * .26);
+                    const bc = b.enabled ? b.fields.bc : b.states.disabled.bc;
+                    ctx.strokeStyle = bc; ctx.lineWidth = .9;
+                    if (def.kind === 'area') { ctx.strokeRect(x, y, w, Math.max(fh, mm(20))); y += Math.max(fh, mm(20)) + gap; }
+                    else if (def.kind === 'rows') { for (let i = 0; i < (b.count || 3); i++) { ctx.strokeRect(x, y, w, fh); y += fh + gap; } }
+                    else if (def.kind === 'checks') { const sz = Math.min(fh, mm(5)); for (let i = 0; i < (b.count || 4); i++) { ctx.strokeRect(x + i * (sz + mm(3)), y, sz, sz); } y += sz + gap; }
+                    else if (def.kind === 'box') { ctx.strokeRect(x, y, w, mm(24)); y += mm(24) + gap; }
+                    else if (def.kind === 'divider') { ctx.beginPath(); ctx.moveTo(x, y + mm(2)); ctx.lineTo(x + w, y + mm(2)); ctx.lineWidth = Math.max(1, b.fields.bw * .6); ctx.stroke(); y += mm(6); }
+                    ctx.restore();
+                    cy = y + mm(4);
+                });
+            };
+            const _confirmTpl = confirmCreateTemplate;
+            confirmCreateTemplate = async function () { await _confirmTpl(); };
+
+            /* ---------- style packs (idea 18) ---------- */
+            function langStyle(pal, langKey, o) {
+                const L = LANGS[langKey];
+                BLOCK_DEFS.forEach(d => {
+                    const b = cfg(d.id); const s = b.shape, t = b.title, f = b.fields;
+                    s.corner = L.corner; s.radius = o.radius; s.cut = L.corner === 'cut' || L.corner === 'ticket' ? o.cut : 0;
+                    s.bw = L.bw; s.bstyle = L.bstyle; s.shadow = o.shadow; s.sc = pal.headerBg; s.blur = 0;
+                    s.transparent = L.transparent; s.bg = o.blockBg; s.bc = pal.border; s.pad = o.pad;
+                    s.rot = 0; s.dx = 0; s.dy = 0; s.op = 100; s.bgMode = 'flat'; s.bgPattern = 'none';
+                    t.visible = !d.noTitle; t.gradient = false; t.outline = false; t.stripe = false; t.underline = false;
+                    t.fs = 11; t.ls = 1.2; t.align = 'left'; t.case = 'uppercase'; t.skew = 0; t.glow = 0; t.accent = pal.accent;
+                    if (L.title === 'underline') { t.bg = pal.paper; t.fg = mixHex(pal.headerBg, '#000000', .2); t.underline = true; t.weight = '800'; t.h = 18; t.r = 0; t.cut = 0; t.full = false; t.w = 100; }
+                    else if (L.title === 'pill') { t.bg = pal.accent; t.fg = '#ffffff'; t.full = false; t.h = 20; t.r = Math.min(30, o.radius); t.cut = 0; t.weight = '800'; }
+                    else if (L.title === 'stripe') { t.bg = pal.headerBg; t.fg = pal.headerText; t.stripe = true; t.full = true; t.w = 100; t.h = 20; t.r = Math.min(o.radius, 6); t.cut = 0; t.weight = '900'; }
+                    else { t.bg = pal.headerBg; t.fg = pal.headerText; t.full = true; t.w = 100; t.h = 20; t.r = Math.min(o.radius, 6); t.cut = 0; t.weight = '900'; }
+                    if (d.kind !== 'area') f.h = 22;
+                    f.r = o.fRadius; f.bw = Math.max(1, L.bw || 1); f.bs = L.fUnder ? 'none' : (L.bstyle === 'dashed' ? 'solid' : L.bstyle);
+                    f.underline = L.fUnder; f.zebra = o.zebra; f.transparent = L.fTransparent;
+                    f.bg = o.fieldBg; f.bc = pal.border; f.fg = pal.text; f.gap = 4; f.pad = 5; f.fs = 12;
+                    f.align = d.kind === 'skills' ? 'center' : 'left'; f.ph = true;
+                    b.states.normal = { op: 100, glow: 0, bw: Math.max(1, f.bw), scale: 100, bg: f.transparent ? '#ffffff' : o.fieldBg, bc: pal.border, fg: pal.text };
+                    b.states.focus = { op: 100, glow: 6, bw: 2, scale: 100, bg: mixHex(pal.paper, pal.accent, .06), bc: pal.accent, fg: pal.text };
+                    b.states.filled = { op: 100, glow: 0, bw: Math.max(1, f.bw), scale: 100, bg: mixHex(pal.paper, pal.accent, .10), bc: mixHex(pal.accent, '#000000', .15), fg: pal.text };
+                    b.states.disabled = { op: 38, glow: 0, bw: 1, scale: 100, bg: '#eeeeee', bc: '#999999', fg: '#777777' };
+                    applyBlock(d.id);
+                });
+            }
+            const PACKS = [
+                {
+                    name: 'Гильдейская хроника', font: 'Georgia', frame: 'double', pattern: 'paper',
+                    palette: { headerBg: '#5b4632', headerText: '#f3e9d2', border: '#8a7452', text: '#3d2f1d', accent: '#8a4b2a', paper: '#f3e9d2' },
+                    lang: 'frame', o: { radius: 4, cut: 0, shadow: 0, pad: 8, blockBg: 'rgba(255,255,255,.35)', fieldBg: '#fffdf6', fRadius: 3, zebra: true }
+                },
+                {
+                    name: 'Неоновое досье', font: 'Mono', frame: 'line', pattern: 'grid',
+                    palette: { headerBg: '#0e1420', headerText: '#c9fbff', border: '#0e7d92', text: '#d8f4ff', accent: '#22d3ee', paper: '#0b111c' },
+                    lang: 'techno', o: { radius: 2, cut: 12, shadow: 10, pad: 8, blockBg: '#101826', fieldBg: '#0d1420', fRadius: 0, zebra: true }
+                },
+                {
+                    name: 'Полевой отчёт', font: 'Inter', frame: 'none', pattern: 'none',
+                    palette: { headerBg: '#202124', headerText: '#ffffff', border: '#bdc1c6', text: '#202124', accent: '#1a73e8', paper: '#ffffff' },
+                    lang: 'minimal', o: { radius: 0, cut: 0, shadow: 0, pad: 4, blockBg: '#ffffff', fieldBg: '#ffffff', fRadius: 0, zebra: false }
+                },
+                {
+                    name: 'Королевский указ', font: 'Georgia', frame: 'corners', pattern: 'none',
+                    palette: { headerBg: '#7a1f2b', headerText: '#fbf7ef', border: '#b08d57', text: '#3a2a1a', accent: '#b08d57', paper: '#fbf7ef' },
+                    lang: 'ticket', o: { radius: 4, cut: 10, shadow: 0, pad: 10, blockBg: '#fffdf4', fieldBg: '#fffdf4', fRadius: 4, zebra: false }
+                },
+                {
+                    name: 'Кислотная лаборатория', font: 'Mono', frame: 'dashed', pattern: 'dots',
+                    palette: { headerBg: '#143314', headerText: '#e9ffcf', border: '#3f6b18', text: '#16240b', accent: '#9ef01a', paper: '#f4ffe8' },
+                    lang: 'card', o: { radius: 12, cut: 0, shadow: 12, pad: 10, blockBg: '#ffffff', fieldBg: '#f8fff0', fRadius: 8, zebra: false }
+                }
+            ];
+            $('pack-chips').innerHTML = PACKS.map((p, i) => `<button class="chip" data-i="${i}">${p.name}</button>`).join('');
+            $('pack-chips').addEventListener('click', e => {
+                const b = e.target.closest('.chip'); if (!b) return;
+                const p = PACKS[+b.dataset.i];
+                markHist();
+                applyPalette(Object.assign({}, p.palette, { frame: p.frame, pattern: p.pattern, watermark: watermarkCfg }));
+                setSheetFont(p.font);
+                langStyle(p.palette, p.lang, p.o);
+                syncInspector();
+                showToast('Пак «' + p.name + '» применён');
+            });
+
+            /* ---------- share link (idea 19) ---------- */
+            function b64url(bin) { return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+            function unb64url(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return atob(s); }
+            async function gzipBytes(str) {
+                const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
+                const buf = await new Response(stream).arrayBuffer();
+                const u = new Uint8Array(buf); let bin = '';
+                for (let i = 0; i < u.length; i += 0x8000)bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+                return bin;
+            }
+            async function gunzipText(bin) {
+                const u = new Uint8Array([...bin].map(c => c.charCodeAt(0)));
+                const stream = new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'));
+                return await new Response(stream).text();
+            }
+            $('x-share').addEventListener('click', async () => {
+                try {
+                    const payload = {
+                        v: 1, palette: readPalette(), blocks: serializeBlocks(), bgOpacity: $('bg-opacity').value,
+                        sheetFont: stateFont, fields: collectFields(), background: readBg() || null, decals: []
+                    };
+                    for (const d of collectDecals()) {
+                        try { const s = await toDataUrl(d.src); delete d.src; d.imageSrc = s; payload.decals.push(d); } catch (e) { }
+                    }
+                    const json = JSON.stringify(payload);
+                    let code, pref;
+                    if (window.CompressionStream) { code = b64url(await gzipBytes(json)); pref = 'g'; }
+                    else { code = b64url(unescape(encodeURIComponent(json))); pref = 'p'; }
+                    const url = location.origin + location.pathname + '#s=' + pref + code;
+                    if (url.length > 60000) { alert('Лист слишком тяжёлый для ссылки (~' + Math.round(url.length / 1024) + ' КБ).\nУберите фоновое изображение или часть декалей и попробуйте снова.'); return; }
+                    await navigator.clipboard.writeText(url);
+                    flash('Ссылка скопирована в буфер');
+                } catch (e) { alert('Не удалось создать ссылку: ' + e.message); }
+            });
+            async function applySharePayload(data) {
+                markHist();
+                applyPalette(data.palette || PALETTE);
+                setSheetFont(data.sheetFont || 'Inter');
+                deserializeBlocks(data.blocks || {});
+                const op = data.bgOpacity ?? 1; $('bg-opacity').value = op; root.style.setProperty('--bg-opacity', op);
+                $('bg-opacity-v').textContent = Math.round(op * 100) + '%';
+                setBg(data.background || '', 'Фон из ссылки', 'var(--ok)');
+                restoreFields(data.fields);
+                clearDecals(false);
+                (data.decals || []).forEach(d => addDecal(null, d, { fromTemplate: !!d.fromTemplate, templateId: d.templateId, templateName: d.templateName }));
+                markHist();
+            }
+            (async function checkShareLink() {
+                const m = location.hash.match(/^#s=(g|p)(.+)$/);
+                if (!m) return;
+                try {
+                    const bin = unb64url(m[2]);
+                    const json = m[1] === 'g' ? await gunzipText(bin) : decodeURIComponent(escape(bin));
+                    const data = JSON.parse(json);
+                    setTimeout(async () => {
+                        if (confirm('В ссылке найден лист персонажа. Загрузить его поверх текущего?')) {
+                            await applySharePayload(data);
+                            history.replaceState(null, '', location.pathname + location.search);
+                            showToast('Лист загружен из ссылки');
+                        }
+                    }, 400);
+                } catch (e) { console.warn('share link parse failed', e); }
+            })();
+
+            /* ---------- boot ---------- */
+            setFrame('none'); setPattern('none'); setWatermark(watermarkCfg);
+            refreshBlockOptions(); buildFieldVis();
+            flash('Расширение конструктора подключено');
+        })();
+    </script>
 </body>
 
 </html>
